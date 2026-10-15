@@ -2641,14 +2641,53 @@ namespace MediaBrowser.Controller.Entities
 
             if (!info1.IsLocalFile || !info2.IsLocalFile)
             {
-                // TODO: Not supported  yet
+                // TODO: Not supported yet
                 return Task.CompletedTask;
             }
 
             var path1 = info1.Path;
             var path2 = info2.Path;
 
-            FileSystem.SwapFiles(path1, path2);
+            var extension1 = System.IO.Path.GetExtension(path1);
+            var extension2 = System.IO.Path.GetExtension(path2);
+
+            if (string.Equals(extension1, extension2, StringComparison.OrdinalIgnoreCase))
+            {
+                FileSystem.SwapFiles(path1, path2);
+            }
+            else
+            {
+                var directory1 = System.IO.Path.GetDirectoryName(path1)
+                    ?? throw new InvalidOperationException("Unable to determine first image directory.");
+
+                var directory2 = System.IO.Path.GetDirectoryName(path2)
+                    ?? throw new InvalidOperationException("Unable to determine second image directory.");
+
+                var newPath1 = System.IO.Path.Combine(
+                    directory1,
+                    System.IO.Path.GetFileNameWithoutExtension(path1) + extension2);
+
+                var newPath2 = System.IO.Path.Combine(
+                    directory2,
+                    System.IO.Path.GetFileNameWithoutExtension(path2) + extension1);
+
+                var tempPath1 = System.IO.Path.Combine(
+                    directory1,
+                    Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + extension1);
+
+                var tempPath2 = System.IO.Path.Combine(
+                    directory2,
+                    Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + extension2);
+
+                System.IO.File.Move(path1, tempPath1);
+                System.IO.File.Move(path2, tempPath2);
+
+                System.IO.File.Move(tempPath2, newPath1);
+                System.IO.File.Move(tempPath1, newPath2);
+
+                info1.Path = newPath1;
+                info2.Path = newPath2;
+            }
 
             // Refresh these values
             info1.DateModified = FileSystem.GetLastWriteTimeUtc(info1.Path);
